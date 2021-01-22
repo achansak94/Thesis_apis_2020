@@ -10,6 +10,7 @@ library(ggplot2)
 library(patchwork)
 library(plotly) 
 library(geepack)
+library(lme4)
 ```
 
 ```{r}
@@ -24,14 +25,17 @@ apis_df=
            recode(beverage,
                   `1` = "spirits", 
                   `2` = "wine", 
-                  `3` = "beer")) %>% 
+                  `3` = "beer")) %>%
+  group_by(fips, month) %>% 
+    mutate(
+      ethanol_total = sum(ethanol),
+      gallons_total = sum(gallons)) %>%  
   pivot_wider(
     names_from = beverage, 
     values_from = c(gallons, ethanol)
     ) %>% 
   view()
 ```
-
 
 ```{r}
 
@@ -63,7 +67,7 @@ wine=
   select(-year) %>% 
   view()
 
-## Beer  
+## 2020 Beer  
 
 beer=
   apis_df %>%
@@ -76,88 +80,16 @@ beer=
   relocate(fips, month) %>% 
   select(-year) %>% 
   view()
+
+## 2020 Total Gallons and Alcohol 
+
+total_alcohol=
+  apis_df %>%
+  select(
+    year, fips, month, population,
+    ethanol_total, gallons_total) %>% 
+  view()
 ```
-
-
-```{r}
-
-#### 2020 Spirit Plots
-
-#Beverage 
-bev_spirits=
-  spirits %>% 
-  ggplot(aes(x = month, y = gallons_spirits/1000000, color = fips)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Gallons of Beverage") +
-  scale_x_continuous(
-    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
-
-#Alcohol 
-etoh_spirits=
-  spirits %>% 
-  ggplot(aes(x = month, y = ethanol_spirits/1000000, color = fips)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Ethanol") +
-  scale_x_continuous(
-    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
-
-
-#### 2020 Wine Plots
-
-#Beverage 
-bev_wine=
-  wine %>% 
-  ggplot(aes(x = month, y = gallons_wine/1000000, color = fips)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Gallons of Beverage") +
-  scale_x_continuous(
-    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
-
-#Alcohol 
-etoh_wine=
-  wine %>% 
-  ggplot(aes(x = month, y = ethanol_wine/1000000, color = fips)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Ethanol") +
-  scale_x_continuous(
-    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
-
-
-#### 2020 Beer Plots
-
-#Beverage 
-bev_beer =
-  beer %>% 
-  ggplot(aes(x = month, y = gallons_beer/1000000, color = fips)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Gallons of Beverage") +
-  scale_x_continuous(
-    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
-
-#Alcohol 
-etoh_beer=
-  beer %>% 
-  ggplot(aes(x = month, y = ethanol_beer/1000000, color = fips)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Ethanol") +
-  scale_x_continuous(
-    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
-```
-
-
-
 
 ```{r}
 
@@ -239,7 +171,6 @@ off_premise=
 ```
 
 
-
 ```{r}
 
 #### Merging Datasets
@@ -294,8 +225,239 @@ beer_offprem=
       by = c("fips", "month")) %>% 
   relocate(state, fips, month, gallons_beer, ethanol_beer) 
 
+## Total Alochol Content  
+
+alcohol_rest=
+  merge(total_alcohol, onprem_rest1,
+      by = c("fips", "month")) %>% 
+  relocate(state, fips, month, ethanol_total, gallons_total) %>% 
+  view()
+
+alcohol_bar=
+  merge(total_alcohol, onprem_bar1,
+     by = c("fips", "month")) %>% 
+  relocate(state, fips, month, ethanol_total, gallons_total)  
+ 
+
+alcohol_offprem=
+  merge(total_alcohol, off_premise,
+      by = c("fips", "month")) %>% 
+  relocate(state, fips, month, ethanol_total, gallons_total)  
+```
+
+```{r}
+
+#### 2020 Restaurant Spirits Plots
+
+#Beverage 
+bev_spirits=
+  spirits_rest %>% 
+  ggplot(aes(x = month, y = gallons_spirits/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Beverage") +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
+
+#Alcohol 
+etoh_spirits=
+  spirits_rest %>% 
+  ggplot(aes(x = month, y = ethanol_spirits/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Ethanol") +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
+
+
+#### 2020 Wine Plots
+
+#Beverage 
+bev_wine=
+  wine_rest %>% 
+  ggplot(aes(x = month, y = gallons_wine/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Beverage") +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
+
+#Alcohol 
+etoh_wine=
+  wine_rest %>% 
+  ggplot(aes(x = month, y = ethanol_wine/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Ethanol") +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
+
+
+#### 2020 Beer Plots
+
+#Beverage 
+bev_beer =
+  beer_rest %>% 
+  ggplot(aes(x = month, y = gallons_beer/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Beverage") +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
+
+#Alcohol 
+etoh_beer=
+  beer_rest %>% 
+  ggplot(aes(x = month, y = ethanol_beer/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Ethanol") +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
+
+
+#### Total Alcohol Plot
+
+#Alcohol 
+alcohol_tot =
+  alcohol_rest %>% 
+  ggplot(aes(x = month, y = ethanol_total/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Beverage (Mil)") +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
+```
+
+
+```{r}
+
+## Histogram of outcomes
+
+#Alcohol
+ggplot(spirits_rest, aes(x=ethanol_spirits)) + geom_histogram()
+ggplot(wine_rest, aes(x=ethanol_wine)) + geom_histogram()
+ggplot(beer_rest, aes(x=ethanol_beer)) + geom_histogram()
+ggplot(alcohol_rest, aes(x=ethanol_total)) + geom_histogram()
+
+#Beverages 
+ggplot(spirits_rest, aes(x=gallons_spirits)) + geom_histogram()
+ggplot(wine_rest, aes(x=gallons_wine)) + geom_histogram()
+ggplot(beer_rest, aes(x=gallons_beer)) + geom_histogram()
+ggplot(alcohol_rest, aes(x=gallons_total)) + geom_histogram()
 
 ```
+
+
+```{r}
+
+### Bi-variate Models for outcome (total gallons of alcohol)  
+
+# On-premise Restaurant Policy Models 
+model1=
+  glmer(ethanol_total ~ 1 + restaurant_open + (1|state),
+        data = alcohol_rest, family="gaussian")
+model2=
+  glmer(ethanol_total ~ 1 + capacity_restrictions + (1|state), 
+        data = alcohol_rest, family="gaussian")
+model3=
+  glmer(ethanol_total ~ 1 + food_restrictions + (1|state), 
+        data = alcohol_rest, family="gaussian")
+model4=
+  glmer(ethanol_total ~ 1 + hours_restrictions + (1|state), 
+        data = alcohol_rest, family="gaussian")
+model5=
+  glmer(ethanol_total ~ 1 + outdoors_only_restrictions + (1|state), 
+        data = alcohol_rest, family="gaussian")
+model6=
+  glmer(ethanol_total ~ 1 + takeout_or_curbside + (1|state), 
+        data = alcohol_rest, family="gaussian")
+model7=
+  glmer(ethanol_total ~ 1 + deliver_to_homes + (1|state),
+        data = alcohol_rest, family="gaussian")
+
+
+# Bar Policy Models 
+
+model8=
+  glmer(ethanol_total ~ 1 + bar_open + (1|state),
+        data = alcohol_bar, family="gaussian")
+model9=
+  glmer(ethanol_total ~ 1 + capacity_restrictions + (1|state), 
+        data = alcohol_bar, family="gaussian")
+model10=
+  glmer(ethanol_total ~ 1 + food_restrictions + (1|state), 
+        data = alcohol_bar, family="gaussian")
+model10=
+  glmer(ethanol_total ~ 1 + hours_restrictions + (1|state), 
+        data = alcohol_bar, family="gaussian")
+model11=
+  glmer(ethanol_total ~ 1 + outdoors_only_restrictions + (1|state), 
+        data = alcohol_bar, family="gaussian")
+model12=
+  glmer(ethanol_total ~ 1 + takeout_or_curbside + (1|state), 
+        data = alcohol_bar, family="gaussian")
+model13=
+  glmer(ethanol_total ~ 1 + deliver_to_homes + (1|state),
+        data = alcohol_bar, family="gaussian")
+
+# Off-premise Alcohol Policy Models 
+
+model14=
+  glmer(ethanol_total ~ 1 + open_restrictions + (1|state), 
+        data = alcohol_offprem, family="gaussian")
+model15=
+  glmer(ethanol_total ~ 1 + deliver_to_homes_restrictions + (1|state),
+        data = alcohol_offprem, family="gaussian")
+
+##Summary statistics 
+
+summary(model1) 
+anova(model1)
+summary(model2) 
+anova(model2)
+summary(model3) 
+anova(model3)
+summary(model4) 
+anova(model4)
+summary(model5) 
+anova(model5)
+summary(model6) 
+anova(model6)
+summary(model7) 
+anova(model7)
+
+summary(model8) 
+anova(model8)
+summary(model9) 
+anova(model9)
+summary(model10) 
+anova(model10)
+summary(model11) 
+anova(model11)
+summary(model12) 
+anova(model12)
+summary(model13) 
+anova(model13)
+
+summary(model14) 
+anova(model14)
+summary(model15) 
+anova(model15)
+
+
+```
+
+
+
+
 
 
 ```{r}
@@ -309,28 +471,5 @@ write.table(wine_rest, "./data/wine_rest.csv", sep= ",")
 write.table(beer_offprem, "./data/beer_offprem.csv", sep= ",")
 
 ```
-
-
-
-
-Models to run 
-
-```{r}
-
-geeglm(gallons_spirits ~ restaurant_open, data=spirits_rest, family = poisson, id=fips)
-
-
-
-
-```
-
-geeglm(gallons_spirits ~ restaurant_open, data=spirits_rest, family = quasi(link = "identity", variance = "constant"), id=fips)
-
-
-
-
-
-
-
 
 
