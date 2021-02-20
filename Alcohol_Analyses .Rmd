@@ -1,0 +1,347 @@
+---
+title: "Thesis_Alcohol"
+output: github_document
+---
+
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+library(patchwork)
+library(plotly) 
+library(geepack)
+library(lme4)
+library(sjPlot)
+library(ggplot2)
+```
+
+
+```{r}
+
+##### Import Alcohol Recode Dataset: 
+apis_df=
+  read_excel("./data/alcsales_August2020.xlsx",
+             sheet = 5, 
+             guess_max = 10000) %>% 
+  janitor::clean_names() %>% 
+  mutate(beverage = 
+           recode(beverage,
+                  `1` = "spirits", 
+                  `2` = "wine", 
+                  `3` = "beer")) %>%
+  group_by(fips, month) %>% 
+    mutate(
+      ethanol_total = sum(ethanol),
+      gallons_total = sum(gallons)) %>%  
+  pivot_wider(
+    names_from = beverage, 
+    values_from = c(gallons, ethanol)
+    ) %>% 
+  mutate(
+    month_cont = case_when(
+      (year == '2017' & month == '9') ~ '1',
+      (year == '2017' & month == '10') ~ '2',
+      (year == '2017' & month == '11') ~ '3',
+      (year == '2017' & month == '12') ~ '4',
+   
+      (year == '2018' & month == '1') ~ '5',
+      (year == '2018' & month == '2') ~ '6',
+      (year == '2018' & month == '3') ~ '7',
+      (year == '2018' & month == '4') ~ '8',
+      (year == '2018' & month == '5') ~ '9',
+      (year == '2018' & month == '6') ~ '10',
+      (year == '2018' & month == '7') ~ '11',
+      (year == '2018' & month == '8') ~ '12',
+      (year == '2018' & month == '9') ~ '13',
+      (year == '2018' & month == '10') ~ '14',
+      (year == '2018' & month == '11') ~ '15',
+      (year == '2018' & month == '12') ~ '16',
+      
+      (year == '2019' & month == '1') ~ '17',
+      (year == '2019' & month == '2') ~ '18',
+      (year == '2019' & month == '3') ~ '19',
+      (year == '2019' & month == '4') ~ '20',
+      (year == '2019' & month == '5') ~ '21',
+      (year == '2019' & month == '6') ~ '22',
+      (year == '2019' & month == '7') ~ '23',
+      (year == '2019' & month == '8') ~ '24',
+      (year == '2019' & month == '9') ~ '25',
+      (year == '2019' & month == '10') ~ '26',
+      (year == '2019' & month == '11') ~ '27',
+      (year == '2019' & month == '12') ~ '28',
+      
+      (year == '2020' & month == '1') ~ '29',
+      (year == '2020' & month == '2') ~ '30',
+      (year == '2020' & month == '3') ~ '31',
+      (year == '2020' & month == '4') ~ '32',
+      (year == '2020' & month == '5') ~ '33',
+      (year == '2020' & month == '6') ~ '34',
+      (year == '2020' & month == '7') ~ '35',
+      (year == '2020' & month == '8') ~ '36',
+    )) %>% 
+  drop_na(month_cont) %>% 
+  view()
+```
+
+
+```{r}
+
+#### 2017-2020 Total Gallons and Alcohol 
+
+total_alcohol=
+  apis_df %>%
+  select(
+    year, fips, month, population,
+    ethanol_total, gallons_total, month_cont) %>% 
+  mutate(
+    per_capital_total_etoh = 
+            round(ethanol_total/population, 4)) %>%
+  view()
+```
+
+
+```{r}
+
+#### On-Premises Establishments - Restaurants Since January 1, 2020
+
+#### Onprem Rest Collapsed columns 
+onprem_rest=
+  read_excel("./data/state_alcohol_policies.xlsx", 
+             sheet = 2,
+             range = "AA1:AI191",
+             col_names = TRUE,
+             guess_max = 10000) %>% 
+  janitor::clean_names() %>%
+  rename(fips = fips_code, month_cont=month) %>% 
+  transform(
+    month_cont = as.numeric(month_cont)
+    ) %>% 
+  filter(month_cont != "37" & month_cont != "38") %>% 
+  relocate(fips, month_cont) %>% 
+  select(-x1, -notes) %>% 
+  view()
+
+#### On-Premises Establishments - Bars Since January 1, 2020
+
+#Onprem Bar Collapsed columns 
+onprem_bar=
+  read_excel("./data/state_alcohol_policies.xlsx", 
+             sheet = 3,
+             range = "AB1:AI181",
+             col_names = TRUE) %>% 
+  janitor::clean_names() %>%
+  rename(fips = fips_code, month_cont=month) %>% 
+  transform(
+    month_cont = as.numeric(month_cont)
+    ) %>% 
+  relocate(fips, month_cont) %>% 
+  filter(month_cont != "37" & month_cont != "37") %>% 
+  relocate(fips, month_cont) %>% 
+  select(-x1) %>% 
+  view()
+
+```
+
+```{r}
+
+## Total Alochol Content  
+
+alcohol_rest=
+  merge(
+    x = total_alcohol,
+    y = onprem_rest,
+    by = c("fips", "month_cont"), 
+    all.x =TRUE) %>% 
+  select(-month) %>% 
+  relocate(state, fips, month_cont, ethanol_total, gallons_total) %>% 
+  transform(
+    month_cont = as.numeric(month_cont)
+    )  %>% 
+  distinct %>% 
+  arrange(month_cont) %>% 
+  view()
+
+alcohol_bar=
+  merge(
+    x = total_alcohol,
+    y = onprem_bar,
+    by = c("fips", "month_cont"),
+    all.x = TRUE) %>% 
+  select(-month) %>% 
+  relocate(state, fips, month_cont, ethanol_total, gallons_total) %>% 
+  transform(
+    month_cont = as.numeric(month_cont)
+    ) %>% 
+  distinct() %>% 
+  arrange(month_cont) %>% 
+  view()
+ 
+```
+
+
+```{r}
+
+## Alcohol for all states 
+ggplot(alcohol_rest, aes(x=ethanol_total/1000000)) + geom_histogram() +
+   labs(x = "Gallons of Alcohol (Mil)", 
+        y = "Count") 
+alcohol_rest %>% 
+  filter(ethanol_total > 40000000) %>% 
+    view()
+
+#Beverages for all states 
+ggplot(alcohol_rest, aes(x=gallons_total/1000000)) + geom_histogram() +
+     labs(x = "Gallons of Beverage (Mil)", 
+        y = "Count") 
+
+```
+
+
+```{r}
+##### 9 State Trends From Aug-17 to Aug-20
+
+## Alaska (AK)	
+
+alaska_OH =
+  alcohol_rest %>% 
+  filter(
+    fips %in% c("02")) %>% 
+  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Alcohol (Mil)") +
+  scale_x_continuous(
+    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+
+
+## Arkansas (AR)	
+
+ark_OH =
+  alcohol_rest %>% 
+  filter(
+    fips %in% c("05")) %>% 
+  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Alcohol (Mil)") +
+  scale_x_continuous(
+    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+
+	
+## Colorado (CO)
+
+colo_OH =
+  alcohol_rest %>% 
+  filter(
+    fips %in% c("08")) %>% 
+  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Alcohol (Mil)") +
+  scale_x_continuous(
+    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+
+	
+
+## Kentucky (KY)
+
+kent_OH =
+  alcohol_rest %>% 
+  filter(
+    fips %in% c("21")) %>% 
+  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Alcohol (Mil)") +
+  scale_x_continuous(
+    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+
+
+
+## Massachusetts (MA)	
+
+mass_OH =
+  alcohol_rest %>% 
+  filter(
+    fips %in% c("25")) %>% 
+  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Alcohol (Mil)") +
+  scale_x_continuous(
+    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+
+
+## Missouri (MO)	
+
+miss_OH =
+  alcohol_rest %>% 
+  filter(
+    fips %in% c("29")) %>% 
+  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Alcohol (Mil)") +
+  scale_x_continuous(
+    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+
+## North Dakota (ND)
+
+nordak_OH =
+  alcohol_rest %>% 
+  filter(
+    fips %in% c("38")) %>% 
+  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Alcohol (Mil)") +
+  scale_x_continuous(
+    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+
+## Tennesse  
+tenn_OH =
+  alcohol_rest %>% 
+  filter(
+    fips %in% c("47")) %>% 
+  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Alcohol (Mil)") +
+  scale_x_continuous(
+    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+
+## Texas 
+texas_OH =
+  alcohol_rest %>% 
+  filter(
+    fips %in% c("48")) %>% 
+  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "Gallons of Alcohol (Mil)") +
+  scale_x_continuous(
+    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+```
+
+
+```{r}
+#### Plotting Models 
+
+model1a=
+  glmer(ethanol_total ~ 1 + as.factor(restaurant_open)*month_cont + (1|state=),
+        data = alcohol_rest, family="gaussian")
+
+
+plot_model(model1a, y=month_count, x=ethanol_total, lines=state)
+```
+

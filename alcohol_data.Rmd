@@ -325,13 +325,13 @@ etoh_beer=
 #### Total Alcohol Plot
 
 #Alcohol 
-alcohol_tot =
+alcohol_2020 =
   alcohol_rest %>% 
   ggplot(aes(x = month, y = ethanol_total/1000000, color = state)) + 
   geom_point() +
   geom_line() + 
   labs(x = "Month", 
-       y = "Gallons of Beverage (Mil)") +
+       y = "Gallons of Alcohol (Mil)") +
   scale_x_continuous(
     breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
 ```
@@ -362,59 +362,63 @@ ggplot(alcohol_rest, aes(x=gallons_total)) + geom_histogram()
 
 # On-premise Restaurant Policy Models 
 model1=
-  glmer(ethanol_total ~ 1 + restaurant_open + (1|state),
+  glmer(ethanol_total ~ 1 + as.factor(restaurant_open)*month + (1|state),
         data = alcohol_rest, family="gaussian")
 model2=
-  glmer(ethanol_total ~ 1 + capacity_restrictions + (1|state), 
+  glmer(ethanol_total ~ 1 + as.factor(capacity_restrictions) + (1|state), 
         data = alcohol_rest, family="gaussian")
 model3=
-  glmer(ethanol_total ~ 1 + food_restrictions + (1|state), 
+  glmer(ethanol_total ~ 1 + as.factor(food_restrictions) + (1|state), 
         data = alcohol_rest, family="gaussian")
 model4=
-  glmer(ethanol_total ~ 1 + hours_restrictions + (1|state), 
+  glmer(ethanol_total ~ 1 + as.factor(hours_restrictions) + (1|state), 
         data = alcohol_rest, family="gaussian")
 model5=
-  glmer(ethanol_total ~ 1 + outdoors_only_restrictions + (1|state), 
+  glmer(ethanol_total ~ 1 + as.factor(outdoors_only_restrictions) + (1|state), 
         data = alcohol_rest, family="gaussian")
 model6=
-  glmer(ethanol_total ~ 1 + takeout_or_curbside + (1|state), 
+  glmer(ethanol_total ~ 1 + as.factor(takeout_or_curbside) + (1|state), 
         data = alcohol_rest, family="gaussian")
 model7=
-  glmer(ethanol_total ~ 1 + deliver_to_homes + (1|state),
+  glmer(ethanol_total ~ 1 + as.factor(deliver_to_homes) + (1|state),
         data = alcohol_rest, family="gaussian")
+
+
+
+
 
 
 # Bar Policy Models 
 
 model8=
-  glmer(ethanol_total ~ 1 + bar_open + (1|state),
+  glmer(ethanol_total ~ 1 + as.factor(bar_open) + (1|state),
         data = alcohol_bar, family="gaussian")
 model9=
-  glmer(ethanol_total ~ 1 + capacity_restrictions + (1|state), 
+  glmer(ethanol_total ~ 1 + as.factor(capacity_restrictions) + (1|state), 
         data = alcohol_bar, family="gaussian")
 model10=
-  glmer(ethanol_total ~ 1 + food_restrictions + (1|state), 
+  glmer(ethanol_total ~ 1 + as.factor(food_restrictions) + (1|state), 
         data = alcohol_bar, family="gaussian")
 model10=
-  glmer(ethanol_total ~ 1 + hours_restrictions + (1|state), 
+  glmer(ethanol_total ~ 1 + as.factor(hours_restrictions) + (1|state), 
         data = alcohol_bar, family="gaussian")
 model11=
-  glmer(ethanol_total ~ 1 + outdoors_only_restrictions + (1|state), 
+  glmer(ethanol_total ~ 1 + as.factor(outdoors_only_restrictions) + (1|state), 
         data = alcohol_bar, family="gaussian")
 model12=
-  glmer(ethanol_total ~ 1 + takeout_or_curbside + (1|state), 
+  glmer(ethanol_total ~ 1 + as.factor(takeout_or_curbside) + (1|state), 
         data = alcohol_bar, family="gaussian")
 model13=
-  glmer(ethanol_total ~ 1 + deliver_to_homes + (1|state),
+  glmer(ethanol_total ~ 1 + as.factor(deliver_to_homes) + (1|state),
         data = alcohol_bar, family="gaussian")
 
 # Off-premise Alcohol Policy Models 
 
 model14=
-  glmer(ethanol_total ~ 1 + open_restrictions + (1|state), 
+  glmer(ethanol_total ~ 1 + as.factor(open_restrictions) + (1|state), 
         data = alcohol_offprem, family="gaussian")
 model15=
-  glmer(ethanol_total ~ 1 + deliver_to_homes_restrictions + (1|state),
+  glmer(ethanol_total ~ 1 + as.factor(deliver_to_homes_restrictions) + (1|state),
         data = alcohol_offprem, family="gaussian")
 
 ##Summary statistics 
@@ -451,9 +455,95 @@ summary(model14)
 anova(model14)
 summary(model15) 
 anova(model15)
-
-
 ```
+
+```{r}
+apis_df1=
+  read_excel("./data/alcsales_August2020.xlsx",
+             sheet = 3, 
+             guess_max = 10000) %>% 
+  janitor::clean_names() %>% 
+  filter(year != "2020") %>% 
+  mutate(beverage = 
+           recode(beverage,
+                  `1` = "spirits", 
+                  `2` = "wine", 
+                  `3` = "beer")) %>%
+  group_by(year, fips, month) %>% 
+    mutate(
+      ethanol_total = sum(ethanol),
+      gallons_total = sum(gallons)) %>%  
+  pivot_wider(
+    names_from = beverage, 
+    values_from = c(gallons, ethanol)
+    ) %>% 
+  relocate(fips)
+
+#### Total Alcohol 2017-2019 Plot
+
+#Merge with fips 
+  
+fips =
+  onprem_rest1 %>%
+  distinct(fips, state, .keep_all = FALSE)
+
+merge1=
+  merge(fips, apis_df1,
+      by = "fips") %>% 
+  view()
+
+## Alcohol by state and year 
+
+# Alcohol 2017
+alcohol_2017 =
+  merge1 %>% 
+  filter(year == 2017) %>% 
+  ggplot(aes(x = month, y = ethanol_total/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "2017 Gallons of Alcohol (Mil)",
+       title = 2017) +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)) 
+
+# Alcohol 2018
+alcohol_2018 =
+  merge1 %>% 
+  filter(year == 2018) %>% 
+  ggplot(aes(x = month, y = ethanol_total/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "2018 Gallons of Alcohol (Mil)",
+       title = "2018") +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)) 
+
+# Alcohol 2019
+alcohol_2019 =
+  merge1 %>% 
+  filter(year == 2019) %>% 
+  ggplot(aes(x = month, y = ethanol_total/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(
+       x = "Month", 
+       y = "2019 Gallons of Alcohol (Mil)",
+      title = "2019") +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)) 
+
+alcohol_2017 + alcohol_2018 + alcohol_2019 + alcohol_2020 
+```
+
+
+
+
+
+
+
+
 
 
 

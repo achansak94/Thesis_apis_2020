@@ -359,13 +359,13 @@ etoh_beer=
 #### Total Alcohol Plot
 
 #Alcohol 
-alcohol_tot =
+alcohol_2020 =
   alcohol_rest %>% 
   ggplot(aes(x = month, y = ethanol_total/1000000, color = state)) + 
   geom_point() +
   geom_line() + 
   labs(x = "Month", 
-       y = "Gallons of Beverage (Mil)") +
+       y = "Gallons of Alcohol (Mil)") +
   scale_x_continuous(
     breaks = c(1, 2, 3, 4, 5, 6, 7, 8)) 
 ```
@@ -1159,6 +1159,88 @@ anova(model15)
     ## Analysis of Variance Table
     ##                               npar     Sum Sq    Mean Sq F value
     ## deliver_to_homes_restrictions    1 7.3751e+10 7.3751e+10  1.4177
+
+``` r
+apis_df1=
+  read_excel("./data/alcsales_August2020.xlsx",
+             sheet = 3, 
+             guess_max = 10000) %>% 
+  janitor::clean_names() %>% 
+  filter(year != "2020") %>% 
+  mutate(beverage = 
+           recode(beverage,
+                  `1` = "spirits", 
+                  `2` = "wine", 
+                  `3` = "beer")) %>%
+  group_by(year, fips, month) %>% 
+    mutate(
+      ethanol_total = sum(ethanol),
+      gallons_total = sum(gallons)) %>%  
+  pivot_wider(
+    names_from = beverage, 
+    values_from = c(gallons, ethanol)
+    ) %>% 
+  relocate(fips)
+
+#### Total Alcohol 2017-2019 Plot
+
+#Merge with fips 
+  
+fips =
+  onprem_rest1 %>%
+  distinct(fips, state, .keep_all = FALSE)
+
+merge1=
+  merge(fips, apis_df1,
+      by = "fips") %>% 
+  view()
+
+## Alcohol by state and year 
+
+# Alcohol 2017
+alcohol_2017 =
+  merge1 %>% 
+  filter(year == 2017) %>% 
+  ggplot(aes(x = month, y = ethanol_total/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "2017 Gallons of Alcohol (Mil)",
+       title = 2017) +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)) 
+
+# Alcohol 2018
+alcohol_2018 =
+  merge1 %>% 
+  filter(year == 2018) %>% 
+  ggplot(aes(x = month, y = ethanol_total/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(x = "Month", 
+       y = "2018 Gallons of Alcohol (Mil)",
+       title = "2018") +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)) 
+
+# Alcohol 2019
+alcohol_2019 =
+  merge1 %>% 
+  filter(year == 2019) %>% 
+  ggplot(aes(x = month, y = ethanol_total/1000000, color = state)) + 
+  geom_point() +
+  geom_line() + 
+  labs(
+       x = "Month", 
+       y = "2019 Gallons of Alcohol (Mil)",
+      title = "2019") +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)) 
+
+alcohol_2017 + alcohol_2018 + alcohol_2019 + alcohol_2020 
+```
+
+![](alcohol_data_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
 
 ``` r
 ## Saving tables 
