@@ -12,6 +12,7 @@ library(patchwork)
 library(plotly) 
 library(geepack)
 library(lme4)
+library(tableone)
 ```
 
 

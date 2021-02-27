@@ -14,12 +14,14 @@ library(geepack)
 library(lme4)
 library(sjPlot)
 library(ggplot2)
+library(haven)
+library(tableone)
 ```
 
 
 ```{r}
 
-##### Import Alcohol Recode Dataset: 
+##### Import, Clean and Recode Dataset
 apis_df=
   read_excel("./data/alcsales_August2020.xlsx",
              sheet = 5, 
@@ -29,18 +31,18 @@ apis_df=
            recode(beverage,
                   `1` = "spirits", 
                   `2` = "wine", 
-                  `3` = "beer")) %>%
-  group_by(fips, month) %>% 
-    mutate(
-      ethanol_total = sum(ethanol),
-      gallons_total = sum(gallons)) %>%  
+                  `3` = "beer")) %>% 
+  group_by(year, month, fips) %>% 
+  mutate(
+    ethanol_total = sum(ethanol),
+    gallons_total = sum(gallons)) %>%
   pivot_wider(
     names_from = beverage, 
     values_from = c(gallons, ethanol)
     ) %>% 
   mutate(
     month_cont = case_when(
-      (year == '2017' & month == '9') ~ '1',
+      (year == '2017' & month == '9') ~ '1', ##September 2017
       (year == '2017' & month == '10') ~ '2',
       (year == '2017' & month == '11') ~ '3',
       (year == '2017' & month == '12') ~ '4',
@@ -78,34 +80,51 @@ apis_df=
       (year == '2020' & month == '5') ~ '33',
       (year == '2020' & month == '6') ~ '34',
       (year == '2020' & month == '7') ~ '35',
-      (year == '2020' & month == '8') ~ '36',
+      (year == '2020' & month == '8') ~ '36', ##Aug 2020
     )) %>% 
   drop_na(month_cont) %>% 
-  view()
+  transform(
+    month_cont = as.numeric(month_cont)) %>%  
+  mutate(
+    annual_time = 
+      case_when(month_cont %in% 1:12 ~'year_1',
+                month_cont %in% 13:24 ~'year_2',
+                month_cont %in% 25:36 ~'year_3')) %>% 
+   view()
+
+  
 ```
 
 
 ```{r}
 
-#### 2017-2020 Total Gallons and Alcohol 
+#### 2017-2020 Total Gallons of Alcohol & Per Capita 
 
 total_alcohol=
   apis_df %>%
-  select(
-    year, fips, month, population,
-    ethanol_total, gallons_total, month_cont) %>% 
+  select(-gallons_spirits:-ethanol_beer, -per_capita3yr, -pct_change, -per_capita) %>% 
+  group_by(year, month_cont, fips) %>% 
   mutate(
-    per_capital_total_etoh = 
-            round(ethanol_total/population, 4)) %>%
+    per_capita_ethanol_total = 
+      round(ethanol_total/population, 8)) %>%  ## Total Alcohol/Population
+  distinct () %>% 
   view()
+
+
+
 ```
 
+
+
+   filter(fips %in% c("02")) %>% 
+
+  filter(fips %in% c("02")) %>% view()
 
 ```{r}
 
 #### On-Premises Establishments - Restaurants Since January 1, 2020
 
-#### Onprem Rest Collapsed columns 
+#### Onpremise Restaurants: Collapsed columns 
 onprem_rest=
   read_excel("./data/state_alcohol_policies.xlsx", 
              sheet = 2,
@@ -124,7 +143,7 @@ onprem_rest=
 
 #### On-Premises Establishments - Bars Since January 1, 2020
 
-#Onprem Bar Collapsed columns 
+#On premise Bar: Collapsed columns 
 onprem_bar=
   read_excel("./data/state_alcohol_policies.xlsx", 
              sheet = 3,
@@ -145,203 +164,383 @@ onprem_bar=
 
 ```{r}
 
-## Total Alochol Content  
+#### Merge Total Alcohol & Policy Dataset 
 
+## Merged with Restaurant-related policies 
 alcohol_rest=
   merge(
     x = total_alcohol,
     y = onprem_rest,
     by = c("fips", "month_cont"), 
     all.x =TRUE) %>% 
-  select(-month) %>% 
   relocate(state, fips, month_cont, ethanol_total, gallons_total) %>% 
   transform(
     month_cont = as.numeric(month_cont)
     )  %>% 
-  distinct %>% 
+  distinct() %>% 
   arrange(month_cont) %>% 
   view()
 
+## Merged with Bar-related policies 
 alcohol_bar=
   merge(
     x = total_alcohol,
     y = onprem_bar,
     by = c("fips", "month_cont"),
     all.x = TRUE) %>% 
-  select(-month) %>% 
   relocate(state, fips, month_cont, ethanol_total, gallons_total) %>% 
   transform(
     month_cont = as.numeric(month_cont)
-    ) %>% 
+    )  %>% 
   distinct() %>% 
   arrange(month_cont) %>% 
   view()
- 
+
 ```
+
 
 
 ```{r}
 
-## Alcohol for all states 
+#### Histogram Distribution for all states 
+
+## Total Gallons of Alcohol
 ggplot(alcohol_rest, aes(x=ethanol_total/1000000)) + geom_histogram() +
    labs(x = "Gallons of Alcohol (Mil)", 
         y = "Count") 
-alcohol_rest %>% 
-  filter(ethanol_total > 40000000) %>% 
-    view()
 
-#Beverages for all states 
-ggplot(alcohol_rest, aes(x=gallons_total/1000000)) + geom_histogram() +
-     labs(x = "Gallons of Beverage (Mil)", 
+## Alcohol Per-Capital (Total Gallons of Alcohol/Population) 
+ggplot(alcohol_rest, aes(x=per_capita_ethanol_total)) + geom_histogram()+
+   labs(x = "Per Capita", 
         y = "Count") 
 
+#### Histogram Distribution for 9 states (AK, AR, CO, KY, MA, MO, ND, TN, TX)
+
+## Alcohol Per-Capita (Total Gallons of Alcohol/Population) - 
+
+alcohol_rest %>% 
+  filter(fips %in% c("02", "05", "08", "21", "25", "29", "38", "47, 48"))%>%
+ggplot(aes(x=ethanol_total/1000000)) + geom_histogram() +
+   labs(x = "Gallons of Alcohol (Mil)", 
+        y = "Count") 
+
+alcohol_rest %>% 
+  filter(fips %in% c("02", "05", "08", "21", "25", "29", "38", "47, 48")) %>%
+ggplot( aes(x=per_capita_ethanol_total)) + 
+geom_histogram() +
+   labs(x = "Total Gallons of Ethanol Per-Capita", 
+        y = "Count") 
 ```
 
 
-```{r}
+
+
+```{r echo=FALSE}
 ##### 9 State Trends From Aug-17 to Aug-20
 
-## Alaska (AK)	
+## Alaska (AK) Per-Capita Trend
 
 alaska_OH =
   alcohol_rest %>% 
   filter(
     fips %in% c("02")) %>% 
-  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Gallons of Alcohol (Mil)") +
-  scale_x_continuous(
-    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+  ggplot(aes(x = month_cont, y = per_capita_ethanol_total, group = annual_time)) +
+  geom_point(alpha=0.8) +
+  geom_line() + geom_smooth(color="dark green", size = 0.3) +
+  labs(title ="Per Capita Trend in Alaska from Sept-2017 to Aug-2020",
+       x = "Month", 
+       y = "Total Gallons of Ethanol Per Capita") +
+  scale_x_continuous (breaks = c(1, 6, 12, 13, 18, 24, 25, 30, 32, 36), labels=c("Sept-17", "Feb-18", "Aug-18", "Sept-18", "Feb-19", "Aug-19", "Sept-19", "Feb-20","Apr-20", "Aug-20" )) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  geom_vline(xintercept = c(8, 20, 32), linetype="dotted", 
+                color = "blue", size=0.7) + 
+  geom_vline(xintercept = c(12.5,24.5), linetype="solid", 
+                color = "dark grey", size=0.7) +
+  annotate("text", x = 32, y = 0.30, label = "Rest./Bars Close", size = 3, angle=90, vjust = -1)
 
 
-## Arkansas (AR)	
+## Arkansas (AR) Per-Capita Trend
 
 ark_OH =
   alcohol_rest %>% 
   filter(
     fips %in% c("05")) %>% 
-  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Gallons of Alcohol (Mil)") +
-  scale_x_continuous(
-    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+  ggplot(aes(x = month_cont, y = per_capita_ethanol_total, group = annual_time)) +
+  geom_point(alpha=0.8) +
+  geom_line() + geom_smooth(color="dark green", size = 0.4) +
+  labs(title ="Per Capita Trend in Arkansas from Sept-2017 to Aug-2020",
+       x = "Month", 
+       y = "Total Gallons of Ethanol Per Capita") +
+  scale_x_continuous (breaks = c(1, 6, 12, 13, 18, 24, 25, 30, 32, 36), labels=c("Sept-17", "Feb-18", "Aug-18", "Sept-18", "Feb-19", "Aug-19", "Sept-19", "Feb-20","Apr-20", "Aug-20" )) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  geom_vline(xintercept = c(10, 22, 34), linetype="dotted",
+             color = "red", size=0.7) +
+  geom_vline(xintercept = c(8, 20, 32), linetype="dotted", 
+                color = "blue", size=0.7) + 
+  geom_vline(xintercept = c(12.5,24.5), linetype="solid", 
+                color = "dark grey", size=0.7) +
+  annotate("text", x = 32, y = 0.18, label = "Rest./Bars Close", size = 3, angle=90, vjust = -1) +
+  annotate("text", x = 34, y = 0.19, label = "Takeout/Delivery", size = 3, angle=90, vjust = -1)
 
-	
-## Colorado (CO)
 
+## Colorado (CO) Per-Capita Trend
 colo_OH =
   alcohol_rest %>% 
   filter(
     fips %in% c("08")) %>% 
-  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Gallons of Alcohol (Mil)") +
-  scale_x_continuous(
-    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+  ggplot(aes(x = month_cont, y = per_capita_ethanol_total, group = annual_time)) +
+  geom_point(alpha=0.8) +
+  geom_line() + geom_smooth(color="dark green", size = 0.4) +
+  labs(title ="Per Capita Trend in Colorado from Sept-2017 to Aug-2020",
+       x = "Month", 
+       y = "Total Gallons of Ethanol Per Capita") +
+  scale_x_continuous (breaks = c(1, 6, 12, 13, 18, 24, 25, 30, 32, 36), labels=c("Sept-17", "Feb-18", "Aug-18", "Sept-18", "Feb-19", "Aug-19", "Sept-19", "Feb-20","Apr-20", "Aug-20" )) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  geom_vline(xintercept = c(10, 22, 34), linetype="dotted",
+             color = "red", size=0.7) +
+  geom_vline(xintercept = c(8, 20, 32), linetype="dotted", 
+                color = "blue", size=0.7) + 
+  geom_vline(xintercept = c(12.5,24.5), linetype="solid", 
+                color = "dark grey", size=0.7) +
+  annotate("text", x = 32, y = 0.30, label = "Rest./Bars Close", size = 3, angle=90, vjust = -1) +
+  annotate("text", x = 34, y = 0.305, label = "Capacity Restrictions", size = 2.5, angle=90, vjust = -1)
+  
 
-	
-
-## Kentucky (KY)
-
+## Kentucky (KY) Per-Capita Trend
 kent_OH =
   alcohol_rest %>% 
   filter(
     fips %in% c("21")) %>% 
-  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Gallons of Alcohol (Mil)") +
-  scale_x_continuous(
-    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
-
+  ggplot(aes(x = month_cont, y = per_capita_ethanol_total, group = annual_time)) +
+  geom_point(alpha=0.8) +
+  geom_line() + geom_smooth(color="dark green", size = 0.4) +
+  labs(title ="Per Capita Trend in Kentucky from Sept-2017 to Aug-2020",
+       x = "Month", 
+       y = "Total Gallons of Ethanol Per Capita") +
+  scale_x_continuous (breaks = c(1, 6, 12, 13, 18, 24, 25, 30, 31, 36), labels=c("Sept-17", "Feb-18", "Aug-18", "Sept-18", "Feb-19", "Aug-19", "Sept-19", "Feb-20","Mar-20", "Aug-20" )) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  geom_vline(xintercept = c(11, 23, 35), linetype="dotted", 
+                color = "red", size=0.7) +
+  geom_vline(xintercept = c(7, 19, 31), linetype="dotted", 
+                color = "blue", size=0.7) + 
+  geom_vline(xintercept = c(12.5,24.5), linetype="solid", 
+                color = "dark grey", size=0.7) +
+  annotate("text", x = 31, y = 0.23, label = "Rest./Bars Close", size = 3, angle=90, vjust = -1) +
+  annotate("text", x = 35, y = 0.23, label = "Bars Re-open", size = 3, angle=90, vjust = -1)
 
 
 ## Massachusetts (MA)	
-
 mass_OH =
   alcohol_rest %>% 
   filter(
     fips %in% c("25")) %>% 
-  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Gallons of Alcohol (Mil)") +
-  scale_x_continuous(
-    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+ ggplot(aes(x = month_cont, y = per_capita_ethanol_total, group = annual_time)) +
+ geom_point(alpha=0.8) +
+  geom_line() + geom_smooth(color="dark green", size = 0.4) +
+  labs(title ="Per Capita Trend in Massachusetts from Sept-2017 to Aug-2020",
+       x = "Month", 
+       y = "Total Gallons of Ethanol Per Capita") +
+  scale_x_continuous (breaks = c(1, 6, 12, 13, 18, 24, 25, 30, 32, 36), labels=c("Sept-17", "Feb-18", "Aug-18", "Sept-18", "Feb-19", "Aug-19", "Sept-19", "Feb-20","Apr-20", "Aug-20" )) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  geom_vline(xintercept = c(8, 20, 32), linetype="dotted", 
+                color = "blue", size=0.7) + 
+  geom_vline(xintercept = c(12.5,24.5), linetype="solid", 
+                color = "dark grey", size=0.7) +
+  annotate("text", x = 32, y = 0.27, label = "Rest./Bars Close", size = 3, angle=90, vjust = -1)
 
 
 ## Missouri (MO)	
-
 miss_OH =
   alcohol_rest %>% 
   filter(
     fips %in% c("29")) %>% 
-  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Gallons of Alcohol (Mil)") +
-  scale_x_continuous(
-    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+ggplot(aes(x = month_cont, y = per_capita_ethanol_total, group = annual_time)) +
+   geom_point(alpha=0.8) +
+  geom_line() + geom_smooth(color="dark green", size = 0.4) +
+  labs(title ="Per Capita Trend in Missouri from Sept-2017 to Aug-2020",
+       x = "Month", 
+       y = "Total Gallons of Ethanol Per Capita") +
+  scale_x_continuous (breaks = c(1, 6, 12, 13, 18, 24, 25, 30, 32, 36), labels=c("Sept-17", "Feb-18", "Aug-18", "Sept-18", "Feb-19", "Aug-19", "Sept-19", "Feb-20","Apr-20", "Aug-20" )) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  geom_vline(xintercept = c(8, 20, 32), linetype="dotted", 
+                color = "blue", size=0.7) + 
+  geom_vline(xintercept = c(12.5,24.5), linetype="solid", 
+                color = "dark grey", size=0.7) +
+  annotate("text", x = 32, y = 0.26, label = "Rest./Bars Close", size = 3, angle=90, vjust = -1)
+  
 
 ## North Dakota (ND)
-
 nordak_OH =
   alcohol_rest %>% 
   filter(
     fips %in% c("38")) %>% 
-  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Gallons of Alcohol (Mil)") +
-  scale_x_continuous(
-    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+  ggplot(aes(x = month_cont, y = per_capita_ethanol_total, group = annual_time)) +
+  geom_point(alpha=0.8) +
+  geom_line() + geom_smooth(color="dark green", size = 0.4) +
+  labs(title ="Per Capita Trend in North Dakota from Sept-2017 to Aug-2020",
+       x = "Month", 
+       y = "Total Gallons of Ethanol Per Capita") +
+  scale_x_continuous (breaks = c(1, 6, 12, 13, 18, 24, 25, 30, 32, 36), labels=c("Sept-17", "Feb-18", "Aug-18", "Sept-18", "Feb-19", "Aug-19", "Sept-19", "Feb-20","Apr-20", "Aug-20" )) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  geom_vline(xintercept = c(9, 21, 33), linetype="dotted",
+             color = "red", size=0.7) +
+  geom_vline(xintercept = c(8, 20, 32), linetype="dotted", 
+                color = "blue", size=0.7) + 
+  geom_vline(xintercept = c(12.5,24.5), linetype="solid", 
+                color = "dark grey", size=0.7) +
+  annotate("text", x = 32, y = 0.33, label = "Rest./Bars Close", size = 3, angle=90, vjust = -1) +
+  annotate("text", x = 33, y = 0.35, label = "Capacity Restrictions", size = 2.5, angle=90, vjust = 1.5)
+
+  
 
 ## Tennesse  
 tenn_OH =
   alcohol_rest %>% 
   filter(
     fips %in% c("47")) %>% 
-  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Gallons of Alcohol (Mil)") +
-  scale_x_continuous(
-    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+  ggplot(aes(x = month_cont, y = per_capita_ethanol_total, group = annual_time)) + 
+  geom_point(alpha=0.8) +
+  geom_line() + geom_smooth(color="dark green", size = 0.4) +
+  labs(title ="Per Capita Trend in Tennesse from Sept-2017 to Aug-2020",
+       x = "Month-Year", 
+       y = "Total Gallons of Ethanol Per Capita") +
+  scale_x_continuous (breaks = c(1, 6, 12, 13, 18, 24, 25, 30, 32, 36), labels=c("Sept-17", "Feb-18", "Aug-18", "Sept-18", "Feb-19", "Aug-19", "Sept-19", "Feb-20","Apr-20", "Aug-20" )) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  geom_vline(xintercept = c(10, 22, 34), linetype="dotted",
+             color = "red", size=0.7) +
+  geom_vline(xintercept = c(8, 20, 32), linetype="dotted", 
+                color = "blue", size=0.7) + 
+  geom_vline(xintercept = c(12.5,24.5), linetype="solid", 
+                color = "dark grey", size=0.7) +
+  annotate("text", x = 32, y = 0.225, label = "Rest./Bars Close", size = 3, angle=90, vjust = -1) +
+  annotate("text", x = 34, y = 0.225, label = "Restrictions Removed", size = 3, angle=90, vjust = -1)
 
+  
 ## Texas 
 texas_OH =
   alcohol_rest %>% 
   filter(
     fips %in% c("48")) %>% 
-  ggplot(aes(x = month_cont, y = ethanol_total/1000000)) + 
-  geom_point() +
-  geom_line() + 
-  labs(x = "Month", 
-       y = "Gallons of Alcohol (Mil)") +
-  scale_x_continuous(
-    breaks = c(0, 6, 12, 18, 24, 30, 36)) 
+  ggplot(aes(x = month_cont, y = per_capita_ethanol_total, group = annual_time)) +
+  geom_point(alpha=0.8) +
+  geom_line() + geom_smooth(color="dark green", size = 0.4) +
+  labs(title ="Per Capita Trend in Texas from Sept-2017 to Aug-2020",
+       x = "Month", 
+       y = "Total Gallons of Ethanol Per Capita") +
+  scale_x_continuous (breaks = c(1, 6, 12, 13, 18, 24, 25, 30, 32, 36), labels=c("Sept-17", "Feb-18", "Aug-18", "Sept-18", "Feb-19", "Aug-19", "Sept-19", "Feb-20","Apr-20", "Aug-20" )) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  geom_vline(xintercept = c(11, 23, 35), linetype="dotted",
+             color = "red", size=0.7) +
+  geom_vline(xintercept = c(8, 20, 32), linetype="dotted", 
+                color = "blue", size=0.7) + 
+  geom_vline(xintercept = c(12.5,24.5), linetype="solid", 
+                color = "dark grey", size=0.7) +
+  annotate("text", x = 32, y = 0.24, label = "Rest./Bars Close", size = 3, angle=90, vjust = -1) +
+  annotate("text", x = 35, y = 0.255, label = "Bar Reclosure", size = 3, angle=90, vjust = -1) 
+
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+#### Generalized Linear Mixed-effects Models for All States --> Model to 1 (1” indicates that state-level policies allow all restaurants to be open, with or without any of the restrictions enumerated in this dataset (i.e., Capacity, Food, Hours, and Outdoors Only)) 
+
+model1=
+  glmer(per_capita_ethanol_total ~ 1 + as.factor(restaurant_open) + (1|state), data = alcohol_rest, family="gaussian")
+
+model2=
+  glmer(per_capita_ethanol_total ~ 1 + as.factor(capacity_restrictions) + (1|state), 
+        data = alcohol_rest, family="gaussian")
+model3=
+  glmer(per_capita_ethanol_total ~ 1 + as.factor(takeout_or_curbside) + (1|state), 
+        data = alcohol_rest, family="gaussian")
+model4=
+  glmer(per_capita_ethanol_total ~ 1 + as.factor(deliver_to_homes) + (1|state),
+        data = alcohol_rest, family="gaussian")
+
+
+##Bar Policy Models 
+
+model5=
+  glmer(per_capita_ethanol_total ~ 1 + as.factor(bar_open) + (1|state),
+        data = alcohol_bar, family="poisson")
+model6=
+  glmer(per_capita_ethanol_total ~ 1 + as.factor(capacity_restrictions)+ (1|state), 
+        data = alcohol_bar, family="poisson")
+model7=
+  glmer(per_capita_ethanol_total ~ 1 + as.factor(takeout_or_curbside) + (1|state), 
+        data = alcohol_bar, family="gaussian")
+model8=
+  glmer(per_capita_ethanol_total ~ 1 + as.factor(deliver_to_homes) + (1|state),
+        data = alcohol_bar, family="gaussian")
+
+
+#### Potential code to change reference group
+DF <- within(DF, b <- relevel(b, ref = 3))
 ```
 
 
 ```{r}
-#### Plotting Models 
 
-model1a=
-  glmer(ethanol_total ~ 1 + as.factor(restaurant_open)*month_cont + (1|state=),
-        data = alcohol_rest, family="gaussian")
+#### Fitting Generalized Linear Models -- Model to 1 (1” indicates that state-level policies allow all restaurants to be open, with or without any of the restrictions enumerated in this dataset (i.e., Capacity, Food, Hours, and Outdoors Only))
+
+## Alaska (AK) Per-Capita Model 
+modelak = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "02"), family="gaussian")
+
+## Arkansas (AR) Per-Capita Model 
+modelar = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "05"), family="gaussian")
+
+## Colorado (CO) Per-Capita Model 
+modelco = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "08"), family="gaussian")
+
+## Kentucky (KY) Per-Capita Model 
+modelky = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "21"), family="gaussian")
+
+## Massachusetts (KY) Per-Capita Model 
+modelma = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "25"), family="gaussian")
+
+## Missouri (MO) Per-Capita Model 
+modelmo = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "29"), family="gaussian")
+
+## North Dakota (ND) Per-Capita Model 
+modelnd = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "38"), family="gaussian")
+
+## Tennesse (TN) Per-Capita Model 
+modeltn = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "47"), family="gaussian")
+
+## Texas (TX) Per-Capita Model 
+modeltx = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "48"), family="gaussian")
 
 
-plot_model(model1a, y=month_count, x=ethanol_total, lines=state)
 ```
-
