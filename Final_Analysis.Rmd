@@ -1,0 +1,451 @@
+---
+title: "Thesis_Alcohol_Final_RMD"
+output: github_document
+---
+
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+library(patchwork)
+library(plotly) 
+library(geepack)
+library(lme4)
+library(sjPlot)
+library(ggplot2)
+library(haven)
+library(tableone)
+```
+
+
+```{r}
+
+##### Import, Clean and Recode Dataset
+apis_df=
+  read_excel("./data/alcsales_August2020.xlsx",
+             sheet = 5, 
+             guess_max = 10000) %>% 
+  janitor::clean_names() %>% 
+  mutate(beverage = 
+           recode(beverage,
+                  `1` = "spirits", 
+                  `2` = "wine", 
+                  `3` = "beer")) %>% 
+  group_by(year, month, fips) %>% 
+  mutate(
+    ethanol_total = sum(ethanol),
+    gallons_total = sum(gallons)) %>% 
+  pivot_wider(
+    names_from = beverage, 
+    values_from = c(gallons, ethanol)
+    ) %>% 
+  mutate(
+    month_cont = case_when(
+      (year == '2017' & month == '9') ~ '1', ##September 2017
+      (year == '2017' & month == '10') ~ '2',
+      (year == '2017' & month == '11') ~ '3',
+      (year == '2017' & month == '12') ~ '4',
+   
+      (year == '2018' & month == '1') ~ '5',
+      (year == '2018' & month == '2') ~ '6',
+      (year == '2018' & month == '3') ~ '7',
+      (year == '2018' & month == '4') ~ '8',
+      (year == '2018' & month == '5') ~ '9',
+      (year == '2018' & month == '6') ~ '10',
+      (year == '2018' & month == '7') ~ '11',
+      (year == '2018' & month == '8') ~ '12',
+      (year == '2018' & month == '9') ~ '13',
+      (year == '2018' & month == '10') ~ '14',
+      (year == '2018' & month == '11') ~ '15',
+      (year == '2018' & month == '12') ~ '16',
+      
+      (year == '2019' & month == '1') ~ '17',
+      (year == '2019' & month == '2') ~ '18',
+      (year == '2019' & month == '3') ~ '19',
+      (year == '2019' & month == '4') ~ '20',
+      (year == '2019' & month == '5') ~ '21',
+      (year == '2019' & month == '6') ~ '22',
+      (year == '2019' & month == '7') ~ '23',
+      (year == '2019' & month == '8') ~ '24',
+      (year == '2019' & month == '9') ~ '25',
+      (year == '2019' & month == '10') ~ '26',
+      (year == '2019' & month == '11') ~ '27',
+      (year == '2019' & month == '12') ~ '28',
+      
+      (year == '2020' & month == '1') ~ '29',
+      (year == '2020' & month == '2') ~ '30',
+      (year == '2020' & month == '3') ~ '31',
+      (year == '2020' & month == '4') ~ '32',
+      (year == '2020' & month == '5') ~ '33',
+      (year == '2020' & month == '6') ~ '34',
+      (year == '2020' & month == '7') ~ '35',
+      (year == '2020' & month == '8') ~ '36', ##Aug 2020
+    )) %>% 
+  drop_na(month_cont) %>% 
+  transform(
+    month_cont = as.numeric(month_cont)) %>%  
+  mutate(
+    annual_time = 
+      case_when(month_cont %in% 1:12 ~'year_1',
+                month_cont %in% 13:24 ~'year_2',
+                month_cont %in% 25:36 ~'year_3')) %>% 
+   view()
+  
+```
+
+
+```{r}
+
+#### 2017-2020 Total Gallons of Alcohol & Per Capita 
+
+total_alcohol=
+  apis_df %>%
+  mutate(
+    month_cat = case_when(
+      (year == '2017' & month == '9') ~ '1', ##September 2017
+      (year == '2017' & month == '10') ~ '2',
+      (year == '2017' & month == '11') ~ '3',
+      (year == '2017' & month == '12') ~ '4',
+      (year == '2018' & month == '1') ~ '5',
+      (year == '2018' & month == '2') ~ '6',
+      (year == '2018' & month == '3') ~ '7',
+      (year == '2018' & month == '4') ~ '8',
+      (year == '2018' & month == '5') ~ '9',
+      (year == '2018' & month == '6') ~ '10',
+      (year == '2018' & month == '7') ~ '11',
+      (year == '2018' & month == '8') ~ '12',
+      
+      (year == '2018' & month == '9') ~ '1',
+      (year == '2018' & month == '10') ~ '2',
+      (year == '2018' & month == '11') ~ '3',
+      (year == '2018' & month == '12') ~ '4',
+      (year == '2019' & month == '1') ~ '5',
+      (year == '2019' & month == '2') ~ '6',
+      (year == '2019' & month == '3') ~ '7',
+      (year == '2019' & month == '4') ~ '8',
+      (year == '2019' & month == '5') ~ '9',
+      (year == '2019' & month == '6') ~ '10',
+      (year == '2019' & month == '7') ~ '11',
+      (year == '2019' & month == '8') ~ '12',
+      
+      (year == '2019' & month == '9') ~ '1',
+      (year == '2019' & month == '10') ~ '2',
+      (year == '2019' & month == '11') ~ '3',
+      (year == '2019' & month == '12') ~ '4',
+      (year == '2020' & month == '1') ~ '5',
+      (year == '2020' & month == '2') ~ '6',
+      (year == '2020' & month == '3') ~ '7',
+      (year == '2020' & month == '4') ~ '8',
+      (year == '2020' & month == '5') ~ '9',
+      (year == '2020' & month == '6') ~ '10',
+      (year == '2020' & month == '7') ~ '11',
+      (year == '2020' & month == '8') ~ '12', ##Aug 2020
+    )) %>% 
+  select(-gallons_spirits:-ethanol_beer, -per_capita3yr, -pct_change, -per_capita) %>% 
+  group_by(year, month_cont, fips) %>% 
+  mutate(
+    per_capita_ethanol_total = 
+      round(ethanol_total/population, 8), ## Total Alcohol/Population
+    treat_yr=
+      case_when(
+        (annual_time == 'year_1' | annual_time == 'year_2') ~ '0',
+        (annual_time == 'year_3') ~ '1'),
+    month_cat = as.numeric(month_cat)
+    ) %>% 
+  distinct () %>% 
+  view()
+```
+
+
+
+```{r}
+
+####Policies for on-premise and off-premise establishments since January 1, 2020
+
+policy_data=
+  read_excel("./data/state_alcohol_policies.xlsx", 
+             sheet = 5,
+             range = "A1:L191",
+             col_names = TRUE,
+             guess_max = 10000) %>% 
+  janitor::clean_names() %>% 
+  rename(fips = fips_code, month=month_3, month_cont=month_4) %>% 
+  transform(
+    month_cont = as.numeric(month_cont),
+    month_month = as.numeric(month)
+    ) %>% 
+  filter(month_cont != "37" & month_cont != "38") %>% 
+  rename(
+     rest_restrict = restaurant_capacity_restrictions,
+     bar_restrict = bar_capacity_restrictions,
+     tout_curb= takeout_or_curbside,
+     delohome = deliver_to_homes,
+     op_open_restrict = off_premise_open_restrictions,
+     op_deliver_restrict = off_premise_deliver_to_homes_restrictions
+     ) %>% 
+  relocate(fips, month_cont) %>% 
+  select(-month_month) %>% 
+  view()
+
+```
+
+```{r}
+
+## Merged with Alcohol sales with alcohol-related policies 
+alco_policydf=
+  merge(
+    x = total_alcohol,
+    y = policy_data,
+    by = c("fips", "month_cont"), 
+    all.x =TRUE) %>% 
+  filter(
+    fips %in% c("02", "05", "08", "21", "25", "29", "38", "47", "48")) %>% 
+  relocate(state, fips, month_cont, ethanol_total, gallons_total) %>%
+  transform(
+    month_cont = as.numeric(month_cont)
+    )  %>% 
+  distinct() %>% 
+  mutate(
+    restaurant_open = replace_na(restaurant_open, 1),
+    bar_open = replace_na(bar_open, 1),
+    rest_restrict = replace_na(rest_restrict, 0),
+    bar_restrict = replace_na(bar_restrict, 0),
+    tout_curb= ifelse(fips %in% c('02','08','21', '38','47','48') &   
+                        is.na(tout_curb), 0, tout_curb),
+    tout_curb = replace_na(tout_curb, 1),
+    delohome= ifelse(fips %in% c('02','08','21', '38') &   
+                        is.na(delohome), 0, delohome),
+    delohome = replace_na(delohome, 1),
+    op_open_restrict = replace_na(op_open_restrict, 1),
+    op_deliver_restrict = ifelse(fips %in% c('05','38') & is.na(op_deliver_restrict), 0, 
+                                 op_deliver_restrict),
+    op_deliver_restrict = replace_na(op_deliver_restrict, 1),
+    ) %>% 
+  rename(actual_month = month.x) %>% 
+  select (-month.y) %>% 
+  arrange(month_cont) %>% 
+  view()
+  
+## Total Observations for 9 states: 324 - Confirmed by 9 states x 36 months 
+
+```
+
+#### Histograms - To check distributions of the 9 states 
+
+alco_policydf1 %>%
+  ggplot(aes(x=per_capita_ethanol_total)) + geom_histogram() +
+   labs(x = "Gallons of Alcohol (Mil)", 
+        y = "Count") 
+
+alco_policydf1 %>%
+  filter(fips == "02") %>%
+  hist(alco_policydf1$per_capita_ethanol_total)
+
+qplot(alco_policydf1$per_capita_ethanol_total, geom="histogram") 
+hist(per_capita_ethanol_total, main="Histogram of observed data")
+
+
+```{r}
+## Further cleaning of dataset to analyze  
+
+alco_policydf1= 
+  alco_policydf %>% 
+  mutate(
+    state = case_when(
+      (fips == '02' ~ 'AK'),
+      (fips == '05' ~ 'AR'),
+      (fips == '08' ~ 'CO'),
+      (fips == '21' ~ 'KY'),
+      (fips == '25' ~ 'MA'),
+      (fips == '29' ~ 'MO'),
+      (fips == '38' ~ 'ND'),
+      (fips == '47' ~ 'TN'),
+      (fips == '48' ~ 'TX'))
+    ) %>% 
+  mutate(
+    prepost_rest_open = restaurant_open,
+    prepost_rest_open = 
+      case_when(
+        (fips == '02' & month_cont == 32) ~ '1',
+        (fips == '02' & month_cont >= 33) ~ '2',
+        (fips == '05' & month_cont == 32) ~ '1',
+        (fips == '05' & month_cont >= 33) ~ '2',
+        (fips == '08' & month_cont == 32|fips == '08' & month_cont == 33) ~ '1',
+        (fips == '08' & month_cont >= 34) ~ '2',
+        (fips == '21' & month_cont == 31|
+           fips == '21' & month_cont == 32|
+           fips == '21' & month_cont == 33) ~ '1',
+        (fips == '21' & month_cont >= 34) ~ '2',
+        (fips == '25' & month_cont == 32|fips == '25' & month_cont ==33) ~ '1',
+        (fips == '25' & month_cont >= 34) ~ '2',
+        (fips == '29' & month_cont == 32) ~ '1',
+        (fips == '29' & month_cont >= 33) ~ '2',
+        (fips == '38' & month_cont == 32) ~ '1',
+        (fips == '38' & month_cont >= 33) ~ '2',
+        (fips == '47' & month_cont == 32) ~ '1',
+        (fips == '47' & month_cont >= 33) ~ '2',
+        (fips == '48' & month_cont == 32) ~ '1',
+        (fips == '48' & month_cont >= 33) ~ '2'),
+        prepost_rest_open = replace_na(prepost_rest_open, 0))%>% 
+    relocate(fips, month_cont, prepost_rest_open) %>% 
+    arrange(fips, month_cont, prepost_rest_open) %>% 
+  view ()
+
+```
+ 
+
+```{r}
+
+
+#### Generalized Linear Models -- Bivariate Crude Associations (Only policies with change)
+
+### Alaska (AK) Per-Capita Models
+model1ak = glm(per_capita_ethanol_total ~ relevel(as.factor(restaurant_open), ref="1"), data = subset(alco_policydf1, fips == "02"), family="gaussian")
+
+model2ak = glm(per_capita_ethanol_total ~ as.factor(rest_restrict), data = subset(alco_policydf1, fips == "02"), family="gaussian")
+
+model3ak= glm(per_capita_ethanol_total ~ as.factor(tout_curb), data = subset(alco_policydf1, fips == "02"), family="gaussian")
+
+model4ak= glm(per_capita_ethanol_total ~ as.factor(delohome), data = subset(alco_policydf1, fips == "02"), family="gaussian")
+
+tab_model(model1ak, model2ak, model3ak, model4ak, digits = 4)
+
+
+### Arkansas (AR) Per-Capita Model 
+model1ar = glm(per_capita_ethanol_total ~ relevel(as.factor(restaurant_open), ref="1"), data = subset(alco_policydf1, fips == "05"), family="gaussian")
+
+model2ar = glm(per_capita_ethanol_total ~ relevel(as.factor(bar_open), ref="1"), data = subset(alco_policydf1, fips == "05"), family="gaussian")
+
+model3ar = glm(per_capita_ethanol_total ~ as.factor(rest_restrict), data = subset(alco_policydf1, fips == "05"), family="gaussian")
+
+model4ar = glm(per_capita_ethanol_total ~ as.factor(bar_restrict), data = subset(alco_policydf1, fips == "05"), family="gaussian")
+
+tab_model(model1ar, model2ar, model3ar, model4ar, digits = 4)
+
+
+### Colorado (CO) Per-Capita Model 
+
+model1co = glm(per_capita_ethanol_total ~ relevel(as.factor(restaurant_open), ref="1"), data = subset(alco_policydf1, fips == "08"), family="gaussian")
+
+model2co = glm(per_capita_ethanol_total ~ relevel(as.factor(bar_open), ref="1"), data = subset(alco_policydf1, fips == "08"), family="gaussian")
+
+model3co = glm(per_capita_ethanol_total ~ as.factor(rest_restrict), data = subset(alco_policydf1, fips == "08"), family="gaussian")
+
+model4co = glm(per_capita_ethanol_total ~ as.factor(bar_restrict), data = subset(alco_policydf1, fips == "08"), family="gaussian")
+
+model5co= glm(per_capita_ethanol_total ~ as.factor(tout_curb), data = subset(alco_policydf1, fips == "08"), family="gaussian")
+
+model6co= glm(per_capita_ethanol_total ~ as.factor(delohome), data = subset(alco_policydf1, fips == "08"), family="gaussian")
+
+tab_model(model1co, model2co, model3co, model4co, model5co, model6co, digits = 4)
+
+
+### Kentucky (KY) Per-Capita Model 
+model1ky = glm(per_capita_ethanol_total ~ relevel(as.factor(restaurant_open), ref="1"), data = subset(alco_policydf1, fips == "21"))
+
+model2ky = glm(per_capita_ethanol_total ~ relevel(as.factor(bar_open), ref="1"), data = subset(alco_policydf1, fips == "21"))
+
+model3ky = glm(per_capita_ethanol_total ~ as.factor(rest_restrict), data = subset(alco_policydf1, fips == "21"))
+
+model4ky = glm(per_capita_ethanol_total ~ as.factor(bar_restrict), data = subset(alco_policydf1, fips == "21"))
+
+model5ky = glm(per_capita_ethanol_total ~ as.factor(tout_curb), data = subset(alco_policydf1, fips == "21"))
+
+model6ky = glm(per_capita_ethanol_total ~ as.factor(delohome), data = subset(alco_policydf1, fips == "21"))
+
+tab_model(model1ky, model2ky, model3ky, model4ky, model5ky, model6ky, digits = 4)
+
+
+### Massachusetts (KY) Per-Capita Model 
+model1ma = glm(per_capita_ethanol_total ~ relevel(as.factor(restaurant_open), ref="1"), data = subset(alco_policydf1, fips == "25"), family="gaussian")
+
+model2ma = glm(per_capita_ethanol_total ~ relevel(as.factor(bar_open), ref="1"), data = subset(alco_policydf1, fips == "25"), family="gaussian")
+
+tab_model(model1ma, model2ma, digits = 4)
+
+
+### Missouri (MO) Per-Capita Model 
+model1mo = glm(per_capita_ethanol_total ~ relevel(as.factor(restaurant_open), ref="1"), data = subset(alco_policydf1, fips == "29"), family="gaussian")
+
+tab_model(model1mo, digits = 4)
+
+
+
+### North Dakota (ND) Per-Capita Model 
+model1nd= glm(per_capita_ethanol_total ~ relevel(as.factor(restaurant_open), ref="1"), data = subset(alco_policydf1, fips == "38"), family="gaussian")
+
+model2nd = glm(per_capita_ethanol_total ~ as.factor(rest_restrict), data = subset(alco_policydf1, fips == "38"), family="gaussian")
+
+tab_model(model1nd, model2nd, digits = 4)
+
+
+### Tennesse (TN) Per-Capita Model 
+model1tn = glm(per_capita_ethanol_total ~ relevel(as.factor(restaurant_open), ref="1"), data = subset(alco_policydf1, fips == "47"), family="gaussian")
+
+model2tn = glm(per_capita_ethanol_total ~ relevel(as.factor(bar_open), ref="1"), data = subset(alco_policydf1, fips == "47"), family="gaussian")
+
+model3tn = glm(per_capita_ethanol_total ~ as.factor(rest_restrict), data = subset(alco_policydf1, fips == "47"), family="gaussian")
+
+model4tn= glm(per_capita_ethanol_total ~ as.factor(bar_restrict), data = subset(alco_policydf1, fips == "47"), family="gaussian")
+
+model5tn= glm(per_capita_ethanol_total ~ as.factor(tout_curb), data = subset(alco_policydf1, fips == "47"), family="gaussian")
+
+tab_model(model1tn, model2tn, model3tn, model4tn, model5tn, digits = 4)
+
+
+
+### Texas (TX) Per-Capita Model 
+
+model1tx = glm(per_capita_ethanol_total ~ relevel(as.factor(restaurant_open), ref="1"), data = subset(alco_policydf1, fips == "48"), family="gaussian")
+
+model2tx = glm(per_capita_ethanol_total ~ relevel(as.factor(bar_open), ref="1"), data = subset(alco_policydf1, fips == "48"), family="gaussian")
+
+model3tx = glm(per_capita_ethanol_total ~ as.factor(rest_restrict), data = subset(alco_policydf1, fips == "48"), family="gaussian")
+
+model4tx= glm(per_capita_ethanol_total ~ as.factor(bar_restrict), data = subset(alco_policydf1, fips == "48"), family="gaussian")
+
+model5tx= glm(per_capita_ethanol_total ~ as.factor(tout_curb), data = subset(alco_policydf1, fips == "48"), family="gaussian")
+
+tab_model(model1tx, model2tx, model3tx, model4tx, model5tx, digits = 4)
+
+
+```
+
+ 
+```{r}
+
+#### DID models for each state (prepost_rest_open = 3 levels)
+
+
+### Alaska (AK) Per-Capita Models
+
+##Option 1 
+did1ak= glm(per_capita_ethanol_total ~ as.factor(prepost_rest_open) + as.factor(month_cat) + as.factor(prepost_rest_open)*as.factor(month_cat), data = subset(alco_policydf1, fips == "02"), family="gaussian")
+  
+## Option 2
+did1ak= glm(per_capita_ethanol_total ~ as.factor(prepost_rest_open) + as.factor(treat_yr) + as.factor(month_cat) + as.factor(prepost_rest_open)*as.factor(treat_yr), data = subset(alco_policydf1, fips == "02"), family="gaussian")
+
+## Option 3 - Don't think this is right
+did1ak= glm(per_capita_ethanol_total ~ relevel(as.factor(restaurant_open), ref="1") + as.factor(prepost_rest_open) + as.factor(month_cat) + relevel(as.factor(restaurant_open), ref="1")*as.factor(prepost_rest_open), data = subset(alco_policydf1, fips == "02"), family="gaussian")
+
+## Option 4 - 
+did1ak= glm(per_capita_ethanol_total ~ relevel(as.factor(restaurant_open), ref="1") + as.factor(month_cat) + as.factor(treat_yr) + relevel(as.factor(restaurant_open), ref="1")*as.factor(treat_yr), data = subset(alco_policydf1, fips == "02"), family="gaussian")
+
+
+
+
+tab_model(did1ak, digits = 4)
+
+
+
+
+### Arkansas (AR) Per-Capita Models
+did1ar= glm(per_capita_ethanol_total ~ relevel(as.factor(restaurant_open), ref="1") + as.factor(prepost_rest_open) + as.factor(month_cat), data = subset(alco_policydf1, fips == "05"), family="gaussian")
+
+
+```
+ 
+ 
+ 
+

@@ -110,15 +110,9 @@ total_alcohol=
   distinct () %>% 
   view()
 
-
-
 ```
 
 
-
-   filter(fips %in% c("02")) %>% 
-
-  filter(fips %in% c("02")) %>% view()
 
 ```{r}
 
@@ -409,7 +403,7 @@ tenn_OH =
   geom_point(alpha=0.8) +
   geom_line() + geom_smooth(color="dark green", size = 0.4) +
   labs(title ="Per Capita Trend in Tennesse from Sept-2017 to Aug-2020",
-       x = "Month-Year", 
+       x = "Month", 
        y = "Total Gallons of Ethanol Per Capita") +
   scale_x_continuous (breaks = c(1, 6, 12, 13, 18, 24, 25, 30, 32, 36), labels=c("Sept-17", "Feb-18", "Aug-18", "Sept-18", "Feb-19", "Aug-19", "Sept-19", "Feb-20","Apr-20", "Aug-20" )) + 
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
@@ -453,23 +447,97 @@ texas_OH =
 ```
 
 
+```{r}
+
+#### Generalized Linear Models -- 
+## Model to 1 (1” indicates that state-level policies allow all restaurants to be open, with or without any of the restrictions enumerated in this dataset (i.e., Capacity, Food, Hours, and Outdoors Only))
+## Only including certain policies enacted (ones that had a potential change)
+
+data$x <- relevel(data$x, ref = 2)        # Apply relevel function
+
+
+## Alaska (AK) Per-Capita Models
+model1ak = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "02"), family="gaussian")
+
+summary(model1ak)
 
 
 
+model2ak = glm(per_capita_ethanol_total ~ as.factor(capacity_restrictions), data = subset(alcohol_rest, fips == "02"), family="gaussian")
+
+model3ak= glm(per_capita_ethanol_total ~ as.factor(takeout_or_curbside), data = subset(alcohol_rest, fips == "02"), family="gaussian")
+
+model4ak= glm(per_capita_ethanol_total ~ as.factor(deliver_to_homes), data = subset(alcohol_rest, fips == "02"), family="gaussian")
+
+
+## Arkansas (AR) Per-Capita Model 
+model1ar = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "05"), family="gaussian")
+
+model2ar = glm(per_capita_ethanol_total ~ as.factor(capacity_restrictions), data = subset(alcohol_bar, fips == "05"), family="gaussian")
+
+model3ar = glm(per_capita_ethanol_total ~ as.factor(takeout_or_curbside), data = subset(alcohol_rest, fips == "05"), family="gaussian")
 
 
 
+## Colorado (CO) Per-Capita Model 
+model1co = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "08"), family="gaussian")
+
+model2co = glm(per_capita_ethanol_total ~ as.factor(capacity_restrictions), data = subset(alcohol_rest, fips == "08"), family="gaussian")
+
+model3co = glm(per_capita_ethanol_total ~ as.factor(capacity_restrictions), data = subset(alcohol_bar, fips == "08"), family="gaussian")
+
+model4co= glm(per_capita_ethanol_total ~ as.factor(takeout_or_curbside), data = subset(alcohol_rest, fips == "08"), family="gaussian")
+
+model5co= glm(per_capita_ethanol_total ~ as.factor(deliver_to_homes), data = subset(alcohol_rest, fips == "08"), family="gaussian")
 
 
 
+## Kentucky (KY) Per-Capita Model 
+modelky = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "21"), family="gaussian")
+
+model2ky = glm(per_capita_ethanol_total ~ as.factor(capacity_restrictions), data = subset(alcohol_rest, fips == "21"), family="gaussian")
+
+model3ky = glm(per_capita_ethanol_total ~ as.factor(capacity_restrictions), data = subset(alcohol_bar, fips == "21"), family="gaussian")
+
+model4ky= glm(per_capita_ethanol_total ~ as.factor(takeout_or_curbside), data = subset(alcohol_rest, fips == "21"), family="gaussian")
+
+model5ky = glm(per_capita_ethanol_total ~ as.factor(deliver_to_homes), data = subset(alcohol_rest, fips == "21"), family="gaussian")
 
 
+## Massachusetts (KY) Per-Capita Model 
+model1ma = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "25"), family="gaussian")
 
 
+## North Dakota (ND) Per-Capita Model 
+model1nd = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "38"), family="gaussian")
+
+model2nd = glm(per_capita_ethanol_total ~ as.factor(capacity_restrictions), data = subset(alcohol_rest, fips == "38"), family="gaussian")
+
+model3nd = glm(per_capita_ethanol_total ~ as.factor(capacity_restrictions), data = subset(alcohol_bar, fips == "38"), family="gaussian")
+
+## Missouri (MO) Per-Capita Model 
+model1mo = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "29"), family="gaussian")
 
 
+## Tennesse (TN) Per-Capita Model 
+model1tn = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "47"), family="gaussian")
 
+model2tn = glm(per_capita_ethanol_total ~ as.factor(capacity_restrictions), data = subset(alcohol_rest, fips == "47"), family="gaussian")
 
+model3tn = glm(per_capita_ethanol_total ~ as.factor(capacity_restrictions), data = subset(alcohol_bar, fips == "47"), family="gaussian")
+
+model4tn= glm(per_capita_ethanol_total ~ as.factor(takeout_or_curbside), data = subset(alcohol_rest, fips == "47"), family="gaussian")
+
+## Texas (TX) Per-Capita Model 
+modeltx = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "48"), family="gaussian")
+
+model2tx = glm(per_capita_ethanol_total ~ as.factor(capacity_restrictions), data = subset(alcohol_rest, fips == "48"), family="gaussian")
+
+model3tx = glm(per_capita_ethanol_total ~ as.factor(capacity_restrictions), data = subset(alcohol_bar, fips == "48"), family="gaussian")
+
+model4tx= glm(per_capita_ethanol_total ~ as.factor(takeout_or_curbside), data = subset(alcohol_rest, fips == "48"), family="gaussian")
+
+```
 
 
 
@@ -489,15 +557,20 @@ model4=
   glmer(per_capita_ethanol_total ~ 1 + as.factor(deliver_to_homes) + (1|state),
         data = alcohol_rest, family="gaussian")
 
-
 ##Bar Policy Models 
+
+model6=
+  glmer(per_capita_ethanol_total ~ 1 + as.factor(capacity_restrictions)+ (1|state), 
+        data = alcohol_bar, family="gaussian")
+
+##Models to remove 
+
+
 
 model5=
   glmer(per_capita_ethanol_total ~ 1 + as.factor(bar_open) + (1|state),
-        data = alcohol_bar, family="poisson")
-model6=
-  glmer(per_capita_ethanol_total ~ 1 + as.factor(capacity_restrictions)+ (1|state), 
-        data = alcohol_bar, family="poisson")
+        data = alcohol_bar, family="gaussian")
+
 model7=
   glmer(per_capita_ethanol_total ~ 1 + as.factor(takeout_or_curbside) + (1|state), 
         data = alcohol_bar, family="gaussian")
@@ -511,36 +584,38 @@ DF <- within(DF, b <- relevel(b, ref = 3))
 ```
 
 
+
 ```{r}
 
-#### Fitting Generalized Linear Models -- Model to 1 (1” indicates that state-level policies allow all restaurants to be open, with or without any of the restrictions enumerated in this dataset (i.e., Capacity, Food, Hours, and Outdoors Only))
+#### DID models for each state 
 
-## Alaska (AK) Per-Capita Model 
-modelak = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "02"), family="gaussian")
+## Alaska (AK) Per-Capita Models
+model1
+did1ak= 
+  as.factor(restaurant_open), data = subset(alcohol_rest, fips == "02"), family="gaussian")*month + (1|state),
+        data = alcohol_offprem_2020, family="gaussian")
 
-## Arkansas (AR) Per-Capita Model 
-modelar = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "05"), family="gaussian")
-
-## Colorado (CO) Per-Capita Model 
-modelco = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "08"), family="gaussian")
-
-## Kentucky (KY) Per-Capita Model 
-modelky = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "21"), family="gaussian")
-
-## Massachusetts (KY) Per-Capita Model 
-modelma = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "25"), family="gaussian")
-
-## Missouri (MO) Per-Capita Model 
-modelmo = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "29"), family="gaussian")
-
-## North Dakota (ND) Per-Capita Model 
-modelnd = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "38"), family="gaussian")
-
-## Tennesse (TN) Per-Capita Model 
-modeltn = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "47"), family="gaussian")
-
-## Texas (TX) Per-Capita Model 
-modeltx = glm(per_capita_ethanol_total ~ as.factor(restaurant_open), data = subset(alcohol_rest, fips == "48"), family="gaussian")
 
 
 ```
+
+
+
+
+add_column(prepost_rest_open = NA, .after = "month_cat") %>% 
+model1ak %>% 
+broom::tidy()
+
+```{r}
+##### DID Interaction Models 
+summary(model)
+confint(model) # 95% CI for the coefficients
+exp(coef(model)) # exponentiated coefficients
+exp(confint(model)) # 95% CI for exponentiated coefficients
+predict(fit, type="response") # predicted values
+residuals(fit, type="deviance") # residuals
+exp()
+#### DID Interaction Model Plots
+```
+   
+   
